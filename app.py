@@ -1,35 +1,38 @@
-# app.py
 import streamlit as st
-from api_client import get_coordinates, get_weather
-from utils import weather_to_df
+import requests
 
-st.title("날씨 조회 툴 (REST API + Streamlit)")
+st.set_page_config(page_title="Weather Dashboard")
 
-city = st.text_input("도시 입력 (예: Seoul, Tokyo, New York)")
+st.title("날씨 조회 앱")
+
+API_KEY = st.secrets["OPENWEATHER_KEY"]
+
+def get_weather(city):
+    url = "https://api.openweathermap.org/data/2.5/weather"
+
+    params = {
+        "q": city,
+        "appid": API_KEY,
+        "units": "metric",
+        "lang": "kr"
+    }
+
+    res = requests.get(url, params=params)
+    return res
+
+city = st.text_input("도시 입력", value="Seoul")
 
 if st.button("조회"):
+    res = get_weather(city)
 
-    coords = get_coordinates(city)
+    if res.status_code != 200:
+        st.error("API 호출 실패")
+        st.write(res.text)
+    else:
+        data = res.json()
 
-    if not coords:
-        st.error("도시를 찾을 수 없음")
-        st.stop()
+        st.success(f"{city} 날씨 조회 성공")
 
-    lat, lon = coords
-
-    weather_json = get_weather(lat, lon)
-    df = weather_to_df(weather_json)
-
-    st.subheader(f"{city} 시간별 온도")
-    st.dataframe(df)
-
-    st.subheader("그래프")
-    st.line_chart(df.set_index("time"))
-
-    # 🔍 검색 기능 (핵심)
-    keyword = st.text_input("특정 시간 검색 (예: 2025-04-26 12:00)")
-
-    if keyword:
-        filtered = df[df["time"].str.contains(keyword)]
-        st.write("검색 결과")
-        st.dataframe(filtered)
+        st.metric("온도", f"{data['main']['temp']} °C")
+        st.metric("습도", f"{data['main']['humidity']} %")
+        st.write("상태:", data["weather"][0]["description"])
